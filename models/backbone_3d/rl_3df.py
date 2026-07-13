@@ -6,6 +6,8 @@ from einops.layers.torch import Rearrange
 from sklearn.neighbors import NearestNeighbors
 import numpy as np
 
+from models.fuser.decu_asf_fusion import DecuASFFusion
+
 
 class RL3DFBackbone_knngate(nn.Module):
     def __init__(self, cfg):
@@ -472,6 +474,26 @@ class RL3DFBackbone_Branching(RL3DFBackbone_knngate):
             branch_weight_floor=self.branch_weight_floor,
         )
 
+        # ── DeCU-ASF: patch-level cross-attention fusion (CASAP) ──
+        self.use_casap = bool(getattr(cfg.MODEL.BACKBONE, 'USE_CASAP', False))
+        self.is_scl = False
+        if self.use_casap:
+            asf_cfg = cfg.MODEL.get('CASAP', {}) or {}
+            patch_size = int(asf_cfg.get('PATCH_SIZE', 2))
+            dim_unified = int(asf_cfg.get('DIM_UNIFIED', 256))
+            n_heads = int(asf_cfg.get('N_HEADS', 16))
+            n_repeat_ch = int(asf_cfg.get('N_REPEAT_CH', 8))
+            self.decu_asf_fusion = DecuASFFusion(
+                branch_feat_dim=self.branch_feat_dim,
+                head_dim=cfg.MODEL.HEAD.DIM,
+                token_dim=token_dim,
+                patch_size=patch_size,
+                dim_unified=dim_unified,
+                n_heads=n_heads,
+                n_repeat_ch=n_repeat_ch,
+            )
+            self.is_scl = bool(asf_cfg.get('SCL', False))
+
         branch_pref_cfg = cfg.MODEL.get('BRANCH_PREF', {})
         self.enable_branch_pref = bool(branch_pref_cfg.get('ENABLED', False))
         if self.enable_branch_pref:
@@ -636,12 +658,30 @@ class RL3DFBackbone_Branching(RL3DFBackbone_knngate):
         gated_radar = (gate_floor + (1.0 - gate_floor) * gate_radar) * bev_feat_R
         gated_camera = (gate_floor + (1.0 - gate_floor) * gate_camera) * bev_feat_C
 
-        # Use pre-computed branch weights for BEV fusion
-        w_L = branch_real_weights[:, 0].view(-1, 1, 1, 1)
-        w_R = branch_real_weights[:, 1].view(-1, 1, 1, 1)
-        w_C = branch_real_weights[:, 2].view(-1, 1, 1, 1)
-        final_bev = w_L * gated_lidar + w_R * gated_radar + w_C * gated_camera
-        final_bev = self.bev_proj(final_bev)  # project to HEAD.DIM
+        # Use pre-computed branch weights for BEV fusion (legacy, non-CASAP path)
+        if not self.use_casap:
+            w_L = branch_real_weights[:, 0].view(-1, 1, 1, 1)
+            w_R = branch_real_weights[:, 1].view(-1, 1, 1, 1)
+            w_C = branch_real_weights[:, 2].view(-1, 1, 1, 1)
+            final_bev = w_L * gated_lidar + w_R * gated_radar + w_C * gated_camera
+            final_bev = self.bev_proj(final_bev)
+        else:
+            # ── DeCU-ASF: patch-level CASAP fusion ──
+            final_bev = self.decu_asf_fusion(
+                gated_lidar, gated_radar, gated_camera,
+                condition_common, unique_lidar, unique_radar,
+                unique_img, prompt_token,
+            )
+
+            # ── SCL: individual sensor combination fusions ──
+            if self.is_scl and self.training:
+                indiv_bevs = self.decu_asf_fusion.get_individual_fusions(
+                    gated_lidar, gated_radar, gated_camera,
+                    condition_common, unique_lidar, unique_radar,
+                    unique_img, prompt_token,
+                )
+                dict_item['list_individual_bevs'] = indiv_bevs
+
         dict_item['final_bev'] = final_bev
 
         dict_item['gated_bev_lidar'] = gated_lidar

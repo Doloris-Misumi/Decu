@@ -733,6 +733,35 @@ class PipelineDetection_v1_0():
                         log_dict[f'weather_aux_weight_{weather_name}'] = float(ce_weight[idx].detach().item())
         return aux_loss, log_dict
 
+    def _compute_scl_loss(self, dict_net):
+        """SCL: Sensor Combination Loss for DeCU-ASF.
+
+        Computes detection loss on all 7 sensor combinations (C, L, R,
+        L+R, C+R, C+L, C+L+R) using the same CASAP network weights.
+        Only active when backbone has USE_CASAP=True and SCL=True.
+        """
+        indiv_bevs = dict_net.get('list_individual_bevs', None)
+        if indiv_bevs is None or len(indiv_bevs) == 0:
+            return None
+
+        scl_weight = float(self.cfg.MODEL.get('CASAP', {}).get('SCL_WEIGHT', 0.5))
+        original_bev = dict_net.get('bev_feat', None)
+        total_scl = 0.0
+
+        for indiv_bev in indiv_bevs:
+            dict_net['bev_feat'] = indiv_bev
+            dict_net = self.network.head.forward(dict_net) if not self.is_distributed \
+                else self.network.module.head.forward(dict_net)
+            head_loss = self.network.head.loss(dict_net) if not self.is_distributed \
+                else self.network.module.head.loss(dict_net)
+            total_scl += head_loss
+
+        # Restore original BEV
+        if original_bev is not None:
+            dict_net['bev_feat'] = original_bev
+
+        return scl_weight * total_scl
+
     def _compute_branch_entropy_loss(self, dict_net):
         cfg_entropy = self.cfg.MODEL.get('BRANCH_ENTROPY', {})
         if not bool(cfg_entropy.get('ENABLED', False)):
@@ -916,6 +945,14 @@ class PipelineDetection_v1_0():
                     if 'logging' not in dict_net:
                         dict_net['logging'] = {}
                     dict_net['logging'].update(branch_entropy_logs)
+
+                # ── SCL: Sensor Combination Loss (DeCU-ASF) ──
+                scl_loss = self._compute_scl_loss(dict_net)
+                if scl_loss is not None:
+                    loss += scl_loss
+                    if 'logging' not in dict_net:
+                        dict_net['logging'] = {}
+                    dict_net['logging']['loss_scl'] = float(scl_loss.detach().item())
                 
                 try:
                     log_avg_loss = loss.cpu().detach().item()
