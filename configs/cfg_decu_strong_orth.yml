@@ -1,0 +1,431 @@
+GENERAL:
+  NAME: RL_3df_gate
+  COMMENT1: Driving corridor, LR 0.001~0.0001
+  COMMENT2: Adam
+  VERSION: '1.1'
+  SEED: 202206
+  IS_CUDA_SEED: false
+  IS_DETERMINISTIC: true
+  DEVICE: gpu
+  DDP_TIMEOUT_MINUTES: 240
+  RESUME:
+    IS_RESUME: false
+    PATH_EXP: null
+    START_EP: null
+    IS_COPY_LOGS: true
+  LOGGING:
+    IS_LOGGING: true
+    PATH_LOGGING: ./logs
+    IS_SAVE_MODEL: true
+    INTERVAL_EPOCH_MODEL: 1
+    INTERVAL_EPOCH_UTIL: 5
+    FEATURE_VIS:
+      ENABLED: true
+      INTERVAL_EPOCH: 1
+      MAX_SAMPLES: 1
+      SAVE_NPY: true
+DATASET:
+  NAME: KRadarDetection_v1_0
+  TYPE_LOADING: path
+  NUM: null
+  DIR:
+    LIST_DIR:
+    - /home/hongsheng/k_radar_dataset
+    DIR_DOPPLER_CB: null
+    DIR_SPARSE_CB: null
+  PATH_SPLIT:
+    train: ./resources/split/train.txt
+    test: ./resources/split/test.txt
+  TYPE_COORD: 1
+  LABEL:
+    IS_CONSIDER_ROI: true
+    ROI_TYPE: sparse_cube
+    ROI_DEFAULT:
+    - 0
+    - 120
+    - -100
+    - 100
+    - -50
+    - 50
+    IS_CHECK_VALID_WITH_AZIMUTH: true
+    MAX_AZIMUTH_DEGREE:
+    - -50
+    - 50
+    TYPE_CHECK_AZIMUTH: center
+  RDR_SP_CUBE:
+    NAME_RDR_SP_CUBE: sparse_cube
+    METHOD: quantile
+    GRID_SIZE: 0.4
+    IS_ANOTHER_DIR: false
+    ROI:
+      z:
+      - -2
+      - 6.0
+      y:
+      - -6.4
+      - 6.4
+      x:
+      - 0
+      - 72.0
+  RDR_TESSERACT:
+    IS_CONSIDER_ROI: false
+    ROI:
+      range: null
+      azimuth: null
+      elevation: null
+  RDR_CUBE:
+    DOPPLER:
+      IS_ANOTHER_DIR: true
+      OFFSET: 1.9326
+    IS_COUNT_MINUS_ONE_FOR_BEV: true
+    IS_CONSIDER_ROI: true
+    ROI:
+      z:
+      - -2
+      - 5.6
+      y:
+      - -40.0
+      - 39.6
+      x:
+      - 0
+      - 98.8
+    CONSIDER_ROI_ORDER: cube -> num
+    BEV_DIVIDE_WITH: bin_z
+    GRID_SIZE: 0.4
+    ARR_Z: null
+    ARR_Y: null
+    ARR_X: null
+    GENERATE_SPARSE_CUBE:
+      NAME_SPARSE_CUBE: sp_rdr_cube
+      DIM: 4
+      IS_SAVE_TO_SAME_SEQUENCE: false
+      DIR_SAVE: null
+      IS_ADD_HALF_GRID_OFFSET: true
+      TYPE_OFFSET: minus
+      NORM: fixed
+      NORMALIZING_VALUE: 1e+13
+      METHOD: quantile
+      PICK_RATE: 0.1
+    CFAR_PARAMS:
+      IS_CFAR: true
+      GUARD_CELL:
+      - 1
+      - 2
+      - 4
+      TRAIN_CELL:
+      - 4
+      - 8
+      - 16
+      FA_RATE: 0.001
+      THR_RATE: 0.02
+  LPC:
+    ROI:
+      z:
+      - -2
+      - 6.0
+      y:
+      - -6.4
+      - 6.4
+      x:
+      - 0
+      - 72.0
+  CLASS_INFO:
+    CLASS_ID:
+      Sedan: 1
+      Bus or Truck: -1
+      Motorcycle: -1
+      Bicycle: -1
+      Bicycle Group: -1
+      Pedestrian: -1
+      Pedestrian Group: -1
+      Background: 0
+    IS_CONSIDER_CLASS_NAME_CHANGE: false
+    CLASS_NAME_CHANGE:
+      Sedan: Sedan
+    NUM_CLS: null
+    SCALE_SMALL_CLS: 1.5
+  Z_OFFSET: 0.7
+  GET_ITEM:
+    rdr_sparse_cube: true
+    rdr_tesseract: false
+    rdr_cube: false
+    rdr_cube_doppler: false
+    ldr_pc_64: true
+    cam_front_img: true
+MODEL:
+  NAME: rl_3dfgate
+  SKELETON: RL3DF_gate
+  USE_CLIP: true
+  WEATHER_AUX:
+    ENABLED: true
+    LAMBDA: 0.1
+    HIDDEN_DIM: 256
+    DROPOUT: 0.3
+    NUM_CLASSES: 7
+    CLASS_WEIGHTS:
+    - 1.0
+    - 1.0
+    - 1.5
+    - 1.0
+    - 2.0
+    - 1.0
+    - 1.8
+  WEATHER_DIVERSITY:
+    ENABLED: true
+    LAMBDA: 0.02
+    INTER_WEIGHT: 1.0
+    INTER_MARGIN: 0.12
+    MIN_SAMPLES_PER_CLASS: 2
+  BRANCH_ENTROPY:
+    ENABLED: true
+    LAMBDA: 0.01
+    TARGET_RATIO: 0.78
+  CONDITION_MODEL:
+    NAME: DecoupledConditionEncoder
+    TOKEN_DIM: 512
+    HIDDEN_DIM: 256
+    DROPOUT: 0.1
+    USE_PROMPT_TOKEN: false
+    OT_ENABLED: true
+    ALIGN_DIM: 64
+    NUM_PROTOTYPES: 8
+    OT_REG: 0.1
+    OT_NUM_ITERS: 50
+  CONDITION_LOSS:
+    ENABLED: true
+    LAMBDA_DECOUPLE: 0.1
+    LAMBDA_COMMON: 0.05
+    LAMBDA_UNIQUE: 0.03
+    UNIQUE_MARGIN: 0.2
+    LAMBDA_HETE: 0.1
+    LAMBDA_HETE_WARMUP_EPOCHS: 10
+  CAMERA_BRANCH:
+    NAME: CameraBEVBackbone
+    ENABLED: true
+    STEM_CHANNELS:
+    - 32
+    - 64
+    - 128
+    - 256
+    OUT_CHANNELS: 768
+    BEV_HEIGHT: 32
+    BEV_WIDTH: 180
+  BRANCH_PREF:
+    ENABLED: true
+    HIDDEN_DIM: 256
+  PRE_PROCESSOR:
+    NAME: RadarSparseProcessor
+    INPUT_DIM: 4
+  PRE_PROCESSOR2:
+    NAME: RadarSparseProcessor_L
+    INPUT_DIM: 4
+  IMG_CLS:
+    NAME: ImageClsBackbone
+    MODEL_PATH: /home/hongsheng/RL_3DOD_backup/models/img_cls/best007_98.pth
+  BACKBONE:
+    TYPE: 3D
+    NAME: RL3DFBackbone_Branching
+    FORCE_BRANCH: none
+    BRANCH_WEIGHT_FLOOR: 0.1
+    GATE_RESIDUAL_FLOOR: 0.15
+    ENCODING:
+      CHANNEL:
+      - 64
+      - 128
+      - 256
+      PADDING:
+      - 1
+      - 1
+      - 1
+      STRIDE:
+      - 1
+      - 2
+      - 2
+    TO_BEV:
+      IS_Z_EMBED: false
+      CHANNEL:
+      - 256
+      - 256
+      - 256
+      KERNEL_SIZE:
+      - - 1
+        - 1
+      - - 2
+        - 2
+      - - 4
+        - 4
+      STRIDE:
+      - - 1
+        - 1
+      - - 2
+        - 2
+      - - 4
+        - 4
+      PADDING:
+      - - 0
+        - 0
+      - - 0
+        - 0
+      - - 0
+        - 0
+  HEAD:
+    NAME: RdrSpcubeHead
+    DIM: 1536
+    NMS_OVERLAP_THRESHOLD: 0.3
+    BG_WEIGHT: 2
+    BOX_CODE:
+    - x
+    - y
+    - z
+    - w
+    - l
+    - h
+    - sin
+    - cos
+  ROI_HEAD: null
+  ANCHOR_GENERATOR_CONFIG:
+  - class_name: Sedan
+    anchor_sizes:
+    - - 4.2
+      - 2.1
+      - 2.0
+    anchor_rotations:
+    - 0
+    - 1.5708
+    anchor_bottom_heights:
+    - 0.0
+    matched_threshold: 0.5
+    unmatched_threshold: 0.2
+OPTIMIZER:
+  NAME: Adam
+  LR: 0.0005
+  MIN_LR: 0.0001
+  BETAS:
+  - 0.9
+  - 0.999
+  WEIGHT_DECAY: 0.01
+  MOMENTUM: 0.9
+  BATCH_SIZE: 4
+  NUM_WORKERS: 4
+  USE_WEATHER_BALANCED_SAMPLER: false
+  WEATHER_BALANCE_POW: 0.5
+  WEATHER_BALANCE_MAX_RATIO: 3.0
+  WEATHER_BALANCE_MIN_RATIO: 1.0
+  MAX_EPOCH: 20
+  SCHEDULER: CosineAnnealingLR
+  TYPE_TOTAL_ITER: all
+VAL:
+  IS_VALIDATE: true
+  IS_CONSIDER_VAL_SUBSET: true
+  VAL_PER_EPOCH_SUBSET: 1
+  VAL_PHASE_SCHEDULE:
+  - - 10
+    - 5
+  - - 999
+    - 1
+  NUM_SUBSET: 5830
+  FULL_ONLY_AT_END: true
+  VAL_PER_EPOCH_FULL: 40
+  RUN_CONDITIONAL_AT_END: true
+  SKIP_STANDARD_FULL_WHEN_CONDITIONAL: true
+  TRAIN_AUG: true
+  TEST_AUG: false
+  LIST_VAL_CONF_THR:
+  - 0.3
+  LIST_VAL_IOU:
+  - 0.7
+  - 0.5
+  - 0.3
+  CLASS_VAL_KEYWORD:
+    Sedan: sed
+    Bus or Truck: bus
+    Motorcycle: mot
+    Bicycle: bic
+    Bicycle Group: big
+    Pedestrian: ped
+    Pedestrian Group: peg
+  REGARDING: anchor
+  LIST_CARE_VAL:
+  - Sedan
+VIS:
+  CLASS_BGR:
+    Sedan:
+    - 0
+    - 255
+    - 0
+    Bus or Truck:
+    - 0
+    - 50
+    - 255
+    Motorcycle:
+    - 0
+    - 0
+    - 255
+    Bicycle:
+    - 0
+    - 255
+    - 255
+    Pedestrian:
+    - 255
+    - 0
+    - 0
+    Pedestrian Group:
+    - 255
+    - 0
+    - 100
+    Label:
+    - 128
+    - 128
+    - 128
+  CLASS_RGB:
+    Sedan:
+    - 0
+    - 1
+    - 0
+    Bus or Truck:
+    - 1
+    - 0.2
+    - 0
+    Motorcycle:
+    - 1
+    - 0
+    - 0
+    Bicycle:
+    - 1
+    - 1
+    - 0
+    Pedestrian:
+    - 0
+    - 0
+    - 1
+    Pedestrian Group:
+    - 0.4
+    - 0
+    - 1
+    Label:
+    - 0.5
+    - 0.5
+    - 0.5
+  ROI:
+    TYPE: default
+    DEFAULT:
+    - 0
+    - 100
+    - -40
+    - 40
+    - -10
+    - 60
+  Z_CENTER:
+    Sedan: 0.5
+    Bus or Truck: 1.5
+    Motorcycle: 0.5
+    Bicycle: 0.5
+    Pedestrian: 0.5
+    Pedestrian Group: 0.5
+  Z_HEIGHT:
+    Sedan: 1.9
+    Bus or Truck: 1.9
+    Motorcycle: -1
+    Bicycle: -1
+    Pedestrian: 2
+    Pedestrian Group: -1

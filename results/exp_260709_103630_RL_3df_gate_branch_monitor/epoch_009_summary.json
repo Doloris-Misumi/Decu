@@ -1,0 +1,47 @@
+{
+  "epoch": 9,
+  "branch_names": [
+    "lidar",
+    "radar",
+    "camera"
+  ],
+  "source_name": "branch_real_weights",
+  "sample_count": 18280,
+  "branch_mean": [
+    0.31470394134521484,
+    0.3542824983596802,
+    0.3310140371322632
+  ],
+  "branch_std": [
+    0.0014391877921298146,
+    0.006086401641368866,
+    0.007590967696160078
+  ],
+  "dominance_ratio": [
+    0.0,
+    1.0,
+    0.0
+  ],
+  "branch_quantiles": [
+    {
+      "p10": 0.31,
+      "p50": 0.31,
+      "p90": 0.31
+    },
+    {
+      "p10": 0.35,
+      "p50": 0.35,
+      "p90": 0.37
+    },
+    {
+      "p10": 0.33,
+      "p50": 0.33,
+      "p90": 0.35
+    }
+  ],
+  "entropy_mean": 0.9987832903862,
+  "entropy_std": 0.00460749252577911,
+  "max_weight_mean": 0.3542824983596802,
+  "condition_topk": [],
+  "weather_breakdown": []
+}
