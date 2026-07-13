@@ -140,20 +140,7 @@ Weather_Conditioned_Branch_Routing/
 - Update config paths to your own local environment before training.
 - Some utility scripts assume GPU/CUDA availability.
 
-## Citation
 
-If this repository is helpful for your work, please cite the corresponding paper:
-
-```bibtex
-@InProceedings{Chae_2024_CVPR,
-    author    = {Chae, Yujeong and Kim, Hyeonseong and Yoon, Kuk-Jin},
-    title     = {Towards Robust 3D Object Detection with LiDAR and 4D Radar Fusion in Various Weather Conditions},
-    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
-    month     = {June},
-    year      = {2024},
-    pages     = {15162-15172}
-}
-```
 
 ## Acknowledgements
 
